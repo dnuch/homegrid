@@ -21,3 +21,6 @@ Relay off; GPIO 14 deactived
 DIO2 active RED 
 DIO3 unactive GREEN
 DIO4 unactive BLUE
+
+0013a20041dae125,off
+0013a20041dae125,on
