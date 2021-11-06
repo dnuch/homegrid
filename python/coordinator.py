@@ -5,10 +5,11 @@ import time
 
 # Pi to XBee Functions
 
+
 def transmit_command_message(command_list):
     if len(command_list) == 2:
         try:
-            mac_addr = binascii.unhexlify(command_list[0]) # HEX string to byte array
+            mac_addr = binascii.unhexlify(command_list[0])  # HEX string to byte array
             action = command_list[1]
 
             xbee.transmit(mac_addr, action)
@@ -22,7 +23,7 @@ def command_message_receiver_handler():
 
     if line:
         line = line.decode()
-        command_list = line.split(",") # CSV delimiter
+        command_list = line.split(",")  # CSV delimiter
         transmit_command_message(command_list)
 
 
@@ -32,8 +33,10 @@ def sensor_message_receiver_handler():
 
     if received_msg:
         # Create HEX string representation of byte array
-        sender_mac_addr = ''.join('{:02x}'.format(x) for x in received_msg['sender_eui64'])
-        payload = received_msg['payload'].decode()
+        sender_mac_addr = "".join(
+            "{:02x}".format(x) for x in received_msg["sender_eui64"]
+        )
+        payload = received_msg["payload"].decode()
         # Serially printout received message
         stdout.buffer.write("{},{}\r\n".format(sender_mac_addr, payload))
 

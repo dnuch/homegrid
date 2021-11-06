@@ -22,5 +22,10 @@ DIO2 active RED
 DIO3 unactive GREEN
 DIO4 unactive BLUE
 
+test xbee
 0013a20041dae125,off
 0013a20041dae125,on
+
+plug on bench
+0013a20041cc5773,off
+0013a20041cc5773,on
