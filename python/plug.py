@@ -30,9 +30,35 @@ def button_handler(state, time_tracker):
     return next_state
 
 
-def i2c_init():
-    i2c = I2C(1, freq=400000)  # create I2C peripheral at frequency of 400kHz
+i2c = I2C(1, freq=400000)  # create I2C peripheral at frequency of 400kHz
 
+def config_calc_number_of_averages():
+    global coordinator_mac_addr64
+    global i2c
+    access_code_reg = 0x2F
+    customer_access_code = 0x4F70656E
+    customer_reg = 0x30
+    rms_avg_len_reg_shadow = 0x1C
+    rms_calc_number_of_averages = (100) <<7 | (126)
+    
+
+    slaveAddr = 96
+    try:
+        i2c.writeto_mem(slaveAddr,access_code_reg,customer_access_code.to_bytes(4, 'little'))
+        i2c.writeto_mem(slaveAddr,rms_avg_len_reg_shadow,rms_calc_number_of_averages.to_bytes(4,'little'))
+        i2c.writeto_mem(slaveAddr,customer_reg,b'\x00')
+        
+        try:
+            xbee.transmit(coordinator_mac_addr64,'Config Success')
+        except:
+            pass
+        pass        
+    except:
+        try:
+            xbee.transmit(coordinator_mac_addr64,'Failed to config')
+        except:
+            pass        
+        pass
 
 def discover_coordinator(coordinator_mac_addr64, time_tracker):
     mac_addr64 = coordinator_mac_addr64
@@ -50,9 +76,58 @@ def discover_coordinator(coordinator_mac_addr64, time_tracker):
 
     return mac_addr64
 
+def read_from_current_monitor(address_to_read):
+    global coordinator_mac_addr64
+    global i2c
+    bytearrayIn = bytearray(4)
+    slaveAddr = 96
+    bytesValue ='\x00\x00\x00\x00'
+        
+    try:
+        bytesValue = i2c.readfrom_mem(slaveAddr, address_to_read, 4)
+        i2c.readfrom_mem_into(slaveAddr,address_to_read,bytearrayIn)
+        
+    except:
+        try:
+            xbee.transmit(coordinator_mac_addr64,'Failed to Read From reg {}'.format(address_to_read))
+        except:
+            pass        
+        pass
+    return bytearrayIn
+
+def read_vrms_irms_avg():
+    global coordinator_mac_addr64
+    vrms = 122
+    rms_reg = 0x26
+    bytesValue = read_from_current_monitor(rms_reg)    
+    testValueConvert = float(int(bytesValue[0]) + (int(bytesValue[1]) * 256))
+    valueConvert =  ((testValueConvert / float(16880.0)) * float(vrms)) #normalized
+    if valueConvert < 20.0:
+        valueConvert = 0.0
+    return valueConvert
+
+def read_power_avg():
+    average_reg = 0x28
+    vrms = 120
+    irms = 30
+
+    bytesValue = read_from_current_monitor(average_reg)
+
+    bytesString = ""
+    for byte in bytesValue:
+        bytesString += hex(byte)
+    testValueConvert = float(int(bytesValue[0]) + (int(bytesValue[1]) * 256) ) 
+    if(bytesValue[2] == 0x01):
+        testValueConvert = testValueConvert * -1.0
+
+    testValueConvert = testValueConvert * .2167 #normalized and offset
+    if testValueConvert < 2.0 :
+        testValueConvert = 0.0
+    return testValueConvert
 
 def get_sensor_payload():
-    return "Sensor Payload"
+
+    return '{},{}'.format(read_power_avg(),read_vrms_irms_avg())
 
 
 def transmit_sensor_payload(state, coordinator_mac_addr64, time_tracker):
@@ -107,7 +182,6 @@ def command_message_receiver_handler(state):
     return next_state
 
 
-i2c_init()
 
 
 def is_timer_expired(current_time_ms, previous_time_ms, timeout):
@@ -161,10 +235,14 @@ class TimeTracker:
 
 
 time_tracker = TimeTracker()
+runOnce = True
 
 while True:
     time_tracker.set_current_time_ms()
     coordinator_mac_addr64 = discover_coordinator(coordinator_mac_addr64, time_tracker)
+    if(coordinator_mac_addr64 != None and runOnce == True):
+        config_calc_number_of_averages()
+        runOnce = False
     periodic_run(STATE, coordinator_mac_addr64, time_tracker)
     STATE = command_message_receiver_handler(STATE)
     STATE = button_handler(STATE, time_tracker)
